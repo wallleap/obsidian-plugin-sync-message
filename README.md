@@ -1,92 +1,222 @@
-# Obsidian Sample Plugin
+# OB Sync Plugin
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Obsidian 笔记同步插件，用于将服务端的消息同步到本地笔记库。
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## 安装
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
+### 手动安装
 
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and outputs a Notice on click.
-- Registers a global interval which logs 'setInterval' to the console.
+1. 下载最新版本：
+   ```bash
+   git clone https://github.com/your-repo/ob-sync.git
+   cd obsidian-plugin
+   npm install
+   npm run build
+   ```
 
-## First time developing plugins?
+2. 将以下文件复制到 Obsidian 笔记库的插件目录：
+   ```
+   <Vault>/.obsidian/plugins/ob-sync/
+   ├── main.js
+   ├── manifest.json
+   └── styles.css
+   ```
 
-Quick starting guide for new plugin devs:
+3. 重启 Obsidian，在设置中启用插件
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `src/main.ts` to `main.js`.
-- Make changes to `src/main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+### 从社区市场安装
 
-## Releasing new releases
+（待发布到社区市场后可用）
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+## 配置
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+在 Obsidian 设置中找到 "OB Sync" 选项：
 
-## Adding your plugin to the community plugin list
+### 基础设置
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+| 设置项 | 说明 | 默认值 |
+|--------|------|--------|
+| **Server URL** | 服务端地址 | `http://localhost:8080` |
+| **User ID** | 用户唯一标识 | 空（需填写） |
+| **Save Folder** | 笔记保存文件夹 | `ObSync` |
+| **Attachment Folder** | 附件子文件夹 | `ObSync/attachments` |
+| **Image Folder** | 图片子文件夹 | `ObSync/images` |
 
-## How to use
+### 模板设置
 
-- Clone this repo.
-- Make sure your NodeJS is at least v18 (`node --version`).
-- `npm i` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+| 设置项 | 说明 |
+|--------|------|
+| **Time Format** | 时间格式，如 `YYYY-MM-DD HH:mm:ss` |
+| **Title Template** | 标题模板，支持变量 `{{title}}`、`{{date}}`、`{{time}}` |
+| **Frontmatter Template** | YAML 前言模板 |
 
-## Manually installing the plugin
+### Frontmatter 模板变量
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+支持以下变量：
 
-## Improve code quality with eslint
+- `{{title}}` - 文章标题
+- `{{created_at}}` - 创建时间
+- `{{url}}` - 原始 URL
+- `{{date}}` - 日期
+- `{{time}}` - 时间
 
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code.
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
-
-## Funding URL
-
-You can include funding URLs where people who use your plugin can financially support it.
-
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
-
-```json
-{
-	"fundingUrl": "https://buymeacoffee.com"
-}
+默认模板：
+```yaml
+title: {{title}}
+date: {{created_at}}
+updated: {{created_at}}
+image-auto-upload: true
+source: {{url}}
 ```
 
-If you have multiple URLs, you can also do:
+## 使用方法
 
-```json
-{
-	"fundingUrl": {
-		"Buy Me a Coffee": "https://buymeacoffee.com",
-		"GitHub Sponsor": "https://github.com/sponsors",
-		"Patreon": "https://www.patreon.com/"
-	}
-}
+### 同步消息
+
+三种方式触发同步：
+
+1. **侧边栏图标**：点击左侧边栏的同步图标
+2. **命令面板**：使用 `Ctrl/Cmd + P` 打开命令面板，搜索 "Sync messages"
+3. **设置页面**：在插件设置中点击 "Sync now" 按钮
+
+### 消息类型处理
+
+#### 文本消息
+
+文本消息会按日期归档到对应的 Markdown 文件：
+
+```
+ObSync/
+└── 2024-01-15.md    # 当天的文本消息
 ```
 
-## API Documentation
+文件格式：
+```markdown
+# 2024-01-15
 
-See https://docs.obsidian.md
+## 14:30:00
+
+这是发送的文本内容...
+```
+
+#### URL 消息
+
+URL 消息会创建独立的 Markdown 文件：
+
+```
+ObSync/
+└── 文章标题.md
+```
+
+文件格式：
+```markdown
+---
+title: 文章标题
+date: 2024-01-15 14:30:00
+source: https://example.com/article
+---
+
+文章内容...
+```
+
+#### 附件消息
+
+附件会下载到指定文件夹，并在 `attachments.md` 中记录：
+
+```
+ObSync/
+├── attachments/
+│   └── document.pdf
+└── attachments.md
+```
+
+## 命令
+
+| 命令 | 说明 |
+|------|------|
+| `OB Sync: Sync messages` | 同步消息 |
+| `OB Sync: Open settings` | 打开设置页面 |
+
+## 项目结构
+
+```
+obsidian-plugin/
+├── src/
+│   ├── main.ts           # 插件入口
+│   └── settings.ts       # 设置管理
+├── manifest.json         # 插件清单
+├── styles.css            # 样式文件
+├── package.json          # 项目配置
+├── tsconfig.json         # TypeScript 配置
+└── esbuild.config.mjs    # 构建配置
+```
+
+## 开发
+
+### 环境要求
+
+- Node.js 18+
+- npm
+
+### 开发模式
+
+```bash
+npm install
+npm run dev
+```
+
+监听文件变化自动编译。
+
+### 构建
+
+```bash
+npm run build
+```
+
+### 代码检查
+
+```bash
+npm run lint
+```
+
+## 数据存储
+
+插件使用 Obsidian 的数据存储 API 保存设置：
+
+- 用户 ID
+- 服务器地址
+- 上次同步时间
+- 上次同步消息 ID
+
+## 注意事项
+
+1. **首次使用**：需要先在 Web 前端生成用户 ID，然后填入插件设置
+2. **网络要求**：需要能访问服务端地址
+3. **文件冲突**：同名文件会被覆盖，请注意备份
+4. **增量同步**：基于时间戳，避免重复下载
+
+## 故障排除
+
+### 同步失败
+
+1. 检查服务器地址是否正确
+2. 检查用户 ID 是否有效
+3. 查看 Obsidian 控制台错误信息
+
+### 文件未创建
+
+1. 检查保存文件夹是否有写入权限
+2. 检查文件名是否包含非法字符
+
+## 更新日志
+
+### v1.0.0
+
+- 初始版本
+- 支持文本、URL、附件同步
+- 支持自定义模板
+- 增量同步机制
+
+## 许可证
+
+MIT License
