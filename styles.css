@@ -1,8 +1,15 @@
-/*
+.ob-sync-settings {
+  padding: 10px;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.ob-sync-settings h2 {
+  margin-bottom: 15px;
+}
 
-If your plugin does not need CSS, delete this file.
-
-*/
+.ob-sync-notice {
+  background-color: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 8px;
+}

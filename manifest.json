@@ -1,11 +1,11 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "ob-sync",
+	"name": "OB Sync",
 	"version": "1.0.0",
 	"minAppVersion": "1.0.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Sync notes and attachments between devices via OB Sync server",
+	"author": "OB Sync Team",
+	"authorUrl": "",
+	"fundingUrl": "",
 	"isDesktopOnly": false
 }
