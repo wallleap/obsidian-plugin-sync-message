@@ -1,16 +1,13 @@
 import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
 	Notice,
 	Plugin,
 	TFile,
+	requestUrl,
 } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
+	ObSyncSettings,
+	ObSyncSettingTab,
 } from './settings';
 
 export interface Message {
@@ -27,34 +24,33 @@ export interface Message {
 	};
 }
 
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+export default class ObSyncPlugin extends Plugin {
+	settings!: ObSyncSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		this.addRibbonIcon('refresh-cw', 'OB Sync', async (_evt: MouseEvent) => {
+		this.addRibbonIcon('refresh-cw', 'Ob sync', async (_evt: MouseEvent) => {
 			await this.syncMessages();
 		});
 
 		this.addCommand({
-			id: 'ob-sync-sync',
-			name: 'Sync Messages',
+			id: 'sync',
+			name: 'Sync messages',
 			callback: async () => {
 				await this.syncMessages();
 			},
 		});
 
 		this.addCommand({
-			id: 'ob-sync-settings',
-			name: 'Open Settings',
+			id: 'open-settings',
+			name: 'Open settings',
 			callback: () => {
-				// @ts-ignore - setting.open() not in type definitions
-				this.app.setting.open();
+				(this.app as unknown as { setting: { open: () => void } }).setting.open();
 			},
 		});
 
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new ObSyncSettingTab(this.app, this));
 	}
 
 	onunload() { }
@@ -63,7 +59,7 @@ export default class MyPlugin extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
+			await this.loadData() as Partial<ObSyncSettings>,
 		);
 	}
 
@@ -73,32 +69,26 @@ export default class MyPlugin extends Plugin {
 
 	async syncMessages() {
 		if (!this.settings.userId) {
-			new Notice('Please set your User ID in settings');
+			new Notice('Please set your user ID in settings');
 			return;
 		}
 
 		const notice = new Notice('Syncing messages...');
 
 		try {
-			const response = await fetch(
-				`${this.settings.serverUrl}/api/message/sync`,
-				{
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({
-						user_id: this.settings.userId,
-						last_sync_time: this.settings.lastSyncTime,
-					}),
+			const response = await requestUrl({
+				url: `${this.settings.serverUrl}/api/message/sync`,
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
 				},
-			);
+				body: JSON.stringify({
+					user_id: this.settings.userId,
+					last_sync_time: this.settings.lastSyncTime,
+				}),
+			});
 
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
-			let messages: Message[] = await response.json();
+			let messages = response.json as Message[];
 
 			if (messages.length === 0) {
 				notice.hide();
@@ -109,8 +99,7 @@ export default class MyPlugin extends Plugin {
 			if (this.settings.lastSyncMessageId) {
 				const syncedIds = new Set<string>();
 				syncedIds.add(this.settings.lastSyncMessageId);
-				messages = messages.filter(msg => !syncedIds.has(msg.id));
-				console.log(`[OB Sync] Filtered out already synced messages`);
+				messages = messages.filter(msg => !syncedIds.has(String(msg.id)));
 			}
 
 			if (messages.length === 0) {
@@ -125,7 +114,7 @@ export default class MyPlugin extends Plugin {
 
 			const latestMessage = messages[messages.length - 1];
 			if (latestMessage) {
-				this.settings.lastSyncMessageId = latestMessage.id;
+				this.settings.lastSyncMessageId = String(latestMessage.id);
 				if (latestMessage.created_at) {
 					this.settings.lastSyncTime = latestMessage.created_at;
 				} else {
@@ -138,31 +127,24 @@ export default class MyPlugin extends Plugin {
 			new Notice(`Synced ${messages.length} message(s)`);
 		} catch (error) {
 			notice.hide();
-			console.error('Sync failed:', error);
 			new Notice('Sync failed: ' + (error as Error).message);
 		}
 	}
 
 	async processMessage(message: Message) {
-		console.log(`[OB Sync] Processing message: id=${message.id}, type="${message.type}", title="${message.title}", original_url="${message.original_url}"`);
-
 		await this.ensureFolderExists(this.settings.saveFolder);
 
 		switch (message.type) {
 			case 'text':
-				console.log(`[OB Sync] Message type is 'text', calling createTextNote`);
 				await this.createTextNote(message);
 				break;
 			case 'url':
-				console.log(`[OB Sync] Message type is 'url', calling createUrlNote`);
 				await this.createUrlNote(message);
 				break;
 			case 'attachment':
-				console.log(`[OB Sync] Message type is 'attachment', calling downloadAttachment`);
 				await this.downloadAttachment(message);
 				break;
 			default:
-				console.log(`[OB Sync] Message type is '${message.type}', calling createTextNote as default`);
 				await this.createTextNote(message);
 		}
 	}
@@ -179,8 +161,11 @@ export default class MyPlugin extends Plugin {
 		const fileName = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.md`;
 		const filePath = `${this.settings.saveFolder}/${fileName}`;
 
-		let file = this.app.vault.getAbstractFileByPath(filePath) as TFile;
-		if (!file) {
+		const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+		let file: TFile;
+		if (abstractFile instanceof TFile) {
+			file = abstractFile;
+		} else {
 			const content = `# ${this.formatDate(date)}\n\n`;
 			file = await this.app.vault.create(filePath, content);
 		}
@@ -200,23 +185,17 @@ export default class MyPlugin extends Plugin {
 		const fileName = `${sanitizedFileName}.md`;
 		const filePath = `${this.settings.saveFolder}/${fileName}`;
 
-		console.log(`[OB Sync] createUrlNote - message.title: "${message.title}", extracted title: "${title}", sanitized fileName: "${sanitizedFileName}", full filePath: "${filePath}"`);
-
 		const frontmatter = this.renderFrontmatter(message, date);
 		const content = this.renderContent(title, message, date, frontmatter);
 
 		try {
-			const existingFile = this.app.vault.getAbstractFileByPath(filePath) as TFile;
-			if (existingFile) {
-				console.log(`[OB Sync] File exists at "${filePath}", modifying content`);
-				await this.app.vault.modify(existingFile, content);
+			const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+			if (abstractFile instanceof TFile) {
+				await this.app.vault.modify(abstractFile, content);
 			} else {
-				console.log(`[OB Sync] File does not exist, creating new file at "${filePath}"`);
 				await this.app.vault.create(filePath, content);
 			}
-			console.log(`[OB Sync] Successfully processed URL note: "${filePath}"`);
 		} catch (error) {
-			console.error(`[OB Sync] Failed to create/modify file:`, error);
 			new Notice(`Failed to create note: ${(error as Error).message}`);
 		}
 	}
@@ -255,16 +234,12 @@ export default class MyPlugin extends Plugin {
 		await this.ensureFolderExists(attachmentFolder);
 
 		try {
-			const response = await fetch(
-				`${this.settings.serverUrl}/api/message/file/${message.id}`,
-			);
+			const response = await requestUrl({
+				url: `${this.settings.serverUrl}/api/message/file/${message.id}`,
+				method: 'GET',
+			});
 
-			if (!response.ok) {
-				throw new Error(`Failed to download attachment`);
-			}
-
-			const blob = await response.blob();
-			const arrayBuffer = await blob.arrayBuffer();
+			const arrayBuffer = response.arrayBuffer;
 
 			const fileName = message.attachment.filename;
 			const filePath = `${attachmentFolder}/${fileName}`;
@@ -274,8 +249,11 @@ export default class MyPlugin extends Plugin {
 			const date = new Date(message.created_at);
 			const notePath = `${this.settings.saveFolder}/attachments.md`;
 
-			let note = this.app.vault.getAbstractFileByPath(notePath) as TFile;
-			if (!note) {
+			const abstractFile = this.app.vault.getAbstractFileByPath(notePath);
+			let note: TFile;
+			if (abstractFile instanceof TFile) {
+				note = abstractFile;
+			} else {
 				note = await this.app.vault.create(notePath, '# Attachments\n\n');
 			}
 
@@ -283,8 +261,8 @@ export default class MyPlugin extends Plugin {
 			const newContent = `${existingContent}- [${fileName}](/${filePath}) (${this.formatDate(date)})\n`;
 
 			await this.app.vault.modify(note, newContent);
-		} catch (error) {
-			console.error('Failed to download attachment:', error);
+		} catch {
+			// Failed to download attachment
 		}
 	}
 
@@ -344,17 +322,5 @@ export default class MyPlugin extends Plugin {
 		}
 
 		return fileName;
-	}
-}
-
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('OB Sync');
-	}
-
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
 	}
 }

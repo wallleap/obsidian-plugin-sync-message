@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
-import MyPlugin from './main';
+import ObSyncPlugin from './main';
 
-export interface MyPluginSettings {
+export interface ObSyncSettings {
 	userId: string;
 	saveFolder: string;
 	lastSyncTime: string;
@@ -15,7 +15,7 @@ export interface MyPluginSettings {
 	serverUrl: string;
 }
 
-export const DEFAULT_SETTINGS: MyPluginSettings = {
+export const DEFAULT_SETTINGS: ObSyncSettings = {
 	userId: '',
 	saveFolder: 'ObSync',
 	lastSyncTime: '',
@@ -33,10 +33,10 @@ source: {{url}}`,
 	serverUrl: 'http://localhost:8080',
 };
 
-export class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+export class ObSyncSettingTab extends PluginSettingTab {
+	plugin: ObSyncPlugin;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: ObSyncPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -50,10 +50,10 @@ export class SampleSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Server URL')
-			.setDesc('The URL of the OB Sync server')
+			.setDesc('The URL of the ob sync server')
 			.addText((text) =>
 				text
-					.setPlaceholder('http://localhost:8080')
+					.setPlaceholder('HTTP://localhost:8080')
 					.setValue(this.plugin.settings.serverUrl)
 					.onChange(async (value) => {
 						this.plugin.settings.serverUrl = value;
@@ -75,11 +75,11 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Save Folder')
+			.setName('Save folder')
 			.setDesc('Folder to save synced notes')
 			.addText((text) =>
 				text
-					.setPlaceholder('OB Sync')
+					.setPlaceholder('Ob sync')
 					.setValue(this.plugin.settings.saveFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.saveFolder = value;
@@ -88,11 +88,11 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Attachment Folder')
+			.setName('Attachment folder')
 			.setDesc('Subfolder for attachments (relative to save folder)')
 			.addText((text) =>
 				text
-					.setPlaceholder('attachments')
+					.setPlaceholder('Attachments')
 					.setValue(this.plugin.settings.attachmentFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.attachmentFolder = value;
@@ -101,11 +101,11 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Image Folder')
+			.setName('Image folder')
 			.setDesc('Subfolder for images (relative to save folder)')
 			.addText((text) =>
 				text
-					.setPlaceholder('images')
+					.setPlaceholder('Images')
 					.setValue(this.plugin.settings.imageFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.imageFolder = value;
@@ -114,11 +114,11 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Time Format')
+			.setName('Time format')
 			.setDesc('Format for timestamps in notes')
 			.addText((text) =>
 				text
-					.setPlaceholder('YYYY-MM-DD HH:mm:ss')
+					.setPlaceholder('Yyyy-mm-dd hh:mm:ss')
 					.setValue(this.plugin.settings.timeFormat)
 					.onChange(async (value) => {
 						this.plugin.settings.timeFormat = value;
@@ -127,7 +127,7 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Title Template')
+			.setName('Title template')
 			.setDesc('Template for note titles. Use {{title}}, {{date}}, {{time}}')
 			.addText((text) =>
 				text
@@ -140,7 +140,7 @@ export class SampleSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Frontmatter Template')
+			.setName('Frontmatter template')
 			.setDesc('Template for YAML frontmatter. Use {{title}}, {{created_at}}, {{url}}')
 			.addTextArea((text) =>
 				text
@@ -149,12 +149,11 @@ export class SampleSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.frontmatterTemplate = value;
 						await this.plugin.saveSettings();
-					})
-					.setRows(10),
+					}),
 			);
 
 		new Setting(containerEl)
-			.setName('Use Image Bed Relay')
+			.setName('Use image bed relay')
 			.setDesc('Enable image upload to image bed after downloading')
 			.addToggle((toggle) =>
 				toggle
@@ -165,14 +164,15 @@ export class SampleSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		containerEl.createEl('div', { cls: 'setting-item-description' }).innerHTML =
-			'<p><strong>Last Sync Time:</strong> <span id="last-sync-time">' +
-			(this.plugin.settings.lastSyncTime ? new Date(this.plugin.settings.lastSyncTime).toLocaleString() : 'Never synced') +
-			'</span></p>';
+		const lastSyncDiv = containerEl.createEl('div', { cls: 'setting-item-description' });
+		const lastSyncP = lastSyncDiv.createEl('p');
+		lastSyncP.createEl('strong', { text: 'Last sync time: ' });
+		const lastSyncSpan = lastSyncP.createEl('span', { attr: { id: 'last-sync-time' } });
+		lastSyncSpan.setText(this.plugin.settings.lastSyncTime ? new Date(this.plugin.settings.lastSyncTime).toLocaleString() : 'Never synced');
 
 		// Add a sync button in settings
 		new Setting(containerEl)
-			.setName('Sync Now')
+			.setName('Sync now')
 			.setDesc('Manually trigger a sync')
 			.addButton((button) =>
 				button
@@ -180,7 +180,7 @@ export class SampleSettingTab extends PluginSettingTab {
 					.onClick(async () => {
 						await this.plugin.syncMessages();
 						// Refresh the display
-						const timeEl = document.getElementById('last-sync-time');
+						const timeEl = activeDocument.getElementById('last-sync-time');
 						if (timeEl) {
 							timeEl.textContent = this.plugin.settings.lastSyncTime
 								? new Date(this.plugin.settings.lastSyncTime).toLocaleString()

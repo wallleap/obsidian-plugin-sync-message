@@ -2,7 +2,7 @@
 	"id": "ob-sync",
 	"name": "OB Sync",
 	"version": "1.0.0",
-	"minAppVersion": "1.0.0",
+	"minAppVersion": "1.4.0",
 	"description": "Sync notes and attachments between devices via OB Sync server",
 	"author": "OB Sync Team",
 	"authorUrl": "",
