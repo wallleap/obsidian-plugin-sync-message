@@ -77,7 +77,7 @@ export default class ObSyncPlugin extends Plugin {
 
 		try {
 			const response = await requestUrl({
-				url: `${this.settings.serverUrl}/api/message/sync`,
+				url: `${this.settings.serverUrl.replace(/\/$/, '')}/api/message/sync`,
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -235,7 +235,7 @@ export default class ObSyncPlugin extends Plugin {
 
 		try {
 			const response = await requestUrl({
-				url: `${this.settings.serverUrl}/api/message/file/${message.id}`,
+				url: `${this.settings.serverUrl.replace(/\/$/, '')}/api/message/file/${message.id}`,
 				method: 'GET',
 			});
 
