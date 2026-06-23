@@ -35,6 +35,7 @@ interface GitHubRelease {
 export default class ObSyncPlugin extends Plugin {
 	settings!: ObSyncSettings;
 	currentVersion: string = '0.0.0';
+	latestRelease: GitHubRelease | null = null;
 
 	async onload() {
 		await this.loadSettings();
@@ -66,6 +67,20 @@ export default class ObSyncPlugin extends Plugin {
 			name: 'Check for updates',
 			callback: async () => {
 				await this.checkForUpdates(true);
+			},
+		});
+
+		this.addCommand({
+			id: 'download-update',
+			name: 'Download and install update',
+			callback: async () => {
+				console.debug('[OB Sync] Manual update command triggered');
+				const latestRelease = await this.fetchLatestVersion();
+				if (latestRelease) {
+					await this.downloadAndInstallUpdate(latestRelease);
+				} else {
+					new Notice('Failed to fetch latest release');
+				}
 			},
 		});
 
@@ -350,9 +365,11 @@ export default class ObSyncPlugin extends Plugin {
 	}
 
 	async checkForUpdates(showNoUpdateNotice: boolean = false): Promise<void> {
+		console.debug('[OB Sync] Checking for updates...');
 		try {
 			const latestRelease = await this.fetchLatestVersion();
 			if (!latestRelease) {
+				console.debug('[OB Sync] Failed to fetch latest release from GitHub');
 				if (showNoUpdateNotice) {
 					new Notice('Failed to check for updates');
 				}
@@ -362,21 +379,50 @@ export default class ObSyncPlugin extends Plugin {
 			const latestVersion = latestRelease.tag_name.replace(/^v/, '');
 			const currentVersion = this.currentVersion.replace(/^v/, '');
 
+			console.debug(`[OB Sync] Current version: ${currentVersion}`);
+			console.debug(`[OB Sync] Latest version: ${latestVersion}`);
+
 			if (this.compareVersions(latestVersion, currentVersion) > 0) {
-				const notice = new Notice(`Update available: ${currentVersion} → ${latestVersion}`, 10000);
-				const el = ((notice as unknown as { messageEl?: HTMLElement }).messageEl
-					?? (notice as unknown as { noticeEl?: HTMLElement }).noticeEl);
-				el?.addEventListener('click', () => {
-					void this.downloadAndInstallUpdate(latestRelease);
-				});
-			} else if (showNoUpdateNotice) {
-				new Notice('No updates available');
+				console.debug(`[OB Sync] Update available: ${currentVersion} → ${latestVersion}`);
+				try {
+					const notice = new Notice(`Update available: ${currentVersion} → ${latestVersion}`, 15000);
+					console.debug('[OB Sync] Notice created with 15s duration');
+					
+					const noticeAsAny = notice as { messageEl?: HTMLElement; noticeEl?: HTMLElement; containerEl?: HTMLElement };
+					console.debug(`[OB Sync] Notice has messageEl: ${noticeAsAny.messageEl ? 'yes' : 'no'}`);
+					console.debug(`[OB Sync] Notice has noticeEl: ${noticeAsAny.noticeEl ? 'yes' : 'no'}`);
+					console.debug(`[OB Sync] Notice has containerEl: ${noticeAsAny.containerEl ? 'yes' : 'no'}`);
+					
+					const el = noticeAsAny.messageEl || noticeAsAny.noticeEl || noticeAsAny.containerEl;
+					console.debug(`[OB Sync] Notice element: ${el ? 'found' : 'not found'}`);
+					
+					if (el) {
+						console.debug(`[OB Sync] Element tag: ${el.tagName}`);
+						const clickHandler = () => {
+							console.debug('[OB Sync] Notice clicked! Starting download...');
+							void this.downloadAndInstallUpdate(latestRelease);
+						};
+						el.addEventListener('click', clickHandler);
+						console.debug('[OB Sync] Click event listener added successfully');
+					} else {
+						console.debug('[OB Sync] Cannot add click listener, all elements are null');
+						console.debug('[OB Sync] Suggesting user to use command to update');
+					}
+				} catch (e) {
+					console.error('[OB Sync] Error creating notice or adding click listener:', e);
+				}
+			} else {
+				console.debug('[OB Sync] No updates available, already on latest version');
+				if (showNoUpdateNotice) {
+					new Notice('No updates available');
+				}
 			}
 
 			this.settings.lastUpdateCheck = new Date().toISOString();
 			await this.saveSettings();
+			console.debug('[OB Sync] Update check completed');
 		} catch (error) {
-			console.error('Error checking for updates:', error);
+			console.error('[OB Sync] Error checking for updates:', error);
 			if (showNoUpdateNotice) {
 				new Notice('Failed to check for updates');
 			}
@@ -392,7 +438,8 @@ export default class ObSyncPlugin extends Plugin {
 					'Accept': 'application/vnd.github.v3+json',
 				},
 			});
-			return response.json as GitHubRelease;
+			this.latestRelease = response.json as GitHubRelease;
+			return this.latestRelease;
 		} catch {
 			return null;
 		}
@@ -413,15 +460,13 @@ export default class ObSyncPlugin extends Plugin {
 	}
 
 	async downloadAndInstallUpdate(release: GitHubRelease): Promise<void> {
+		console.debug(`[OB Sync] Starting download for version ${release.tag_name}`);
 		const notice = new Notice('Downloading update...');
 
 		try {
-			const pluginDir = this.getPluginDirectory();
-			if (!pluginDir) {
-				new Notice('Failed to find plugin directory');
-				notice.hide();
-				return;
-			}
+			const pluginId = (this.manifest as { id?: string })?.id || 'ob-sync';
+			const pluginDir = `.obsidian/plugins/${pluginId}`;
+			console.debug(`[OB Sync] Plugin directory (relative): ${pluginDir}`);
 
 			const requiredFiles = ['main.js', 'manifest.json', 'styles.css'];
 			const assets = release.assets;
@@ -429,27 +474,32 @@ export default class ObSyncPlugin extends Plugin {
 			for (const fileName of requiredFiles) {
 				const asset = assets.find(a => a.name === fileName);
 				if (!asset) {
-					console.warn(`Missing asset: ${fileName}`);
+					console.debug(`[OB Sync] Missing asset: ${fileName}`);
 					continue;
 				}
 
+				console.debug(`[OB Sync] Downloading ${fileName} from ${asset.browser_download_url}`);
 				const response = await requestUrl({
 					url: asset.browser_download_url,
 					method: 'GET',
 				});
 
 				const filePath = `${pluginDir}/${fileName}`;
+				console.debug(`[OB Sync] Writing ${fileName} to ${filePath}`);
+				
 				if (response.arrayBuffer) {
 					await this.app.vault.adapter.writeBinary(filePath, response.arrayBuffer);
 				} else if (typeof response.text === 'string') {
 					await this.app.vault.adapter.write(filePath, response.text);
 				}
+				console.debug(`[OB Sync] Successfully downloaded ${fileName}`);
 			}
 
+			console.debug(`[OB Sync] Update ${release.tag_name} downloaded successfully`);
 			notice.hide();
 			new Notice('Update downloaded! Please restart Obsidian to complete the update.', 15000);
 		} catch (error) {
-			console.error('Error downloading update:', error);
+			console.error('[OB Sync] Error downloading update:', error);
 			notice.hide();
 			new Notice('Failed to download update');
 		}
@@ -458,13 +508,24 @@ export default class ObSyncPlugin extends Plugin {
 	getPluginDirectory(): string | null {
 		try {
 			const pluginId = (this.manifest as { id?: string })?.id || 'ob-sync';
-			const adapter = (this.app.vault as unknown as { adapter?: { basePath?: string } }).adapter;
+			console.debug(`[OB Sync] Plugin ID from manifest: ${pluginId}`);
+			
+			const vault = this.app.vault as unknown as { adapter?: { basePath?: string } };
+			const adapter = vault.adapter;
+			console.debug(`[OB Sync] Adapter available: ${adapter ? 'yes' : 'no'}`);
+			
 			const vaultDir = adapter?.basePath;
+			console.debug(`[OB Sync] Vault directory: ${vaultDir || 'not found'}`);
+			
 			if (vaultDir) {
-				return `${vaultDir}/.obsidian/plugins/${pluginId}`;
+				const pluginDir = `${vaultDir}/.obsidian/plugins/${pluginId}`;
+				console.debug(`[OB Sync] Plugin directory: ${pluginDir}`);
+				return pluginDir;
 			}
+			console.debug('[OB Sync] Cannot get plugin directory: vaultDir is null');
 			return null;
-		} catch {
+		} catch (e) {
+			console.error('[OB Sync] Error getting plugin directory:', e);
 			return null;
 		}
 	}

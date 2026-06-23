@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import ObSyncPlugin from './main';
 
 export interface ObSyncSettings {
@@ -166,16 +166,59 @@ export class ObSyncSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		new Setting(containerEl)
-			.setName('Check for updates')
-			.setDesc('Manually check for plugin updates')
-			.addButton((button) =>
-				button
-					.setButtonText('Check')
-					.onClick(async () => {
-						await this.plugin.checkForUpdates(true);
-					}),
-			);
+		// Update section
+		const updateSection = new Setting(containerEl)
+			.setName('Plugin update')
+			.setDesc('Check for and install plugin updates');
+
+		updateSection.addButton((button) => {
+			button.setButtonText('Check');
+			button.onClick(async () => {
+				try {
+					const latestRelease = await (this.plugin as unknown as { fetchLatestVersion: () => Promise<unknown> }).fetchLatestVersion();
+					if (!latestRelease) {
+						new Notice('Failed to fetch latest release');
+						updateSection.clear();
+						updateSection.setName('No update available');
+						updateSection.setDesc('You are already on the latest version');
+						return;
+					}
+
+					const plugin = this.plugin as unknown as {
+						currentVersion: string;
+						compareVersions: (v1: string, v2: string) => number;
+						downloadAndInstallUpdate: (release: unknown) => Promise<void>;
+					};
+					
+					const latestVersion = (latestRelease as { tag_name: string }).tag_name.replace(/^v/, '');
+					const currentVersion = plugin.currentVersion.replace(/^v/, '');
+					
+					if (plugin.compareVersions(latestVersion, currentVersion) > 0) {
+						updateSection.clear();
+						updateSection.setName(`Update available: ${currentVersion} → ${latestVersion}`);
+						updateSection.setDesc('Click download to install the update');
+						
+						updateSection.addButton((downloadBtn) => {
+							downloadBtn.setButtonText('Download');
+							downloadBtn.setCta();
+							downloadBtn.onClick(async () => {
+								await plugin.downloadAndInstallUpdate(latestRelease);
+							});
+						});
+					} else {
+						updateSection.clear();
+						updateSection.setName('No update available');
+						updateSection.setDesc(`You are already on the latest version (${currentVersion})`);
+					}
+				} catch (error) {
+					console.error('[OB Sync] Error checking for updates:', error);
+					new Notice('Failed to check for updates');
+					updateSection.clear();
+					updateSection.setName('Update check failed');
+					updateSection.setDesc('Please try again later');
+				}
+			});
+		});
 
 		const versionDiv = containerEl.createEl('div', { cls: 'setting-item-description' });
 		const versionP = versionDiv.createEl('p');
