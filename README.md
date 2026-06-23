@@ -2,35 +2,68 @@
 
 Obsidian 笔记同步插件，用于将服务端的消息同步到本地笔记库。
 
+**项目地址**：[https://github.com/wallleap/obsidian-plugin-sync-message](https://github.com/wallleap/obsidian-plugin-sync-message)
+
+**注意**：本插件不会发布到 Obsidian 社区市场，请通过以下方式安装。
+
 ## 安装
 
-### 手动安装
+### 方式一：从 GitHub Releases 下载（推荐）
 
-1. 下载最新版本：
+1. 访问 [GitHub Releases](https://github.com/wallleap/obsidian-plugin-sync-message/releases) 页面
+
+2. 下载最新版本的 `main.js`、`manifest.json` 和 `styles.css` 文件
+
+3. 在 Obsidian 笔记库中创建插件目录：
+   ```
+   <Vault>/.obsidian/plugins/ob-sync/
+   ```
+
+4. 将下载的三个文件复制到该目录
+
+5. 重启 Obsidian，在设置中启用插件
+
+### 方式二：从源码构建
+
+1. 克隆仓库：
    ```bash
-   git clone https://github.com/your-repo/ob-sync.git
-   cd obsidian-plugin
+   git clone https://github.com/wallleap/obsidian-plugin-sync-message.git
+   cd obsidian-plugin-sync-message/obsidian-plugin
    npm install
    npm run build
    ```
 
-2. 将以下文件复制到 Obsidian 笔记库的插件目录：
-   ```
-   <Vault>/.obsidian/plugins/ob-sync/
-   ├── main.js
-   ├── manifest.json
-   └── styles.css
+2. 将构建产物复制到插件目录：
+   ```bash
+   cp main.js <Vault>/.obsidian/plugins/ob-sync/
+   cp manifest.json <Vault>/.obsidian/plugins/ob-sync/
+   cp styles.css <Vault>/.obsidian/plugins/ob-sync/
    ```
 
 3. 重启 Obsidian，在设置中启用插件
 
-### 从社区市场安装
-
-（待发布到社区市场后可用）
-
 ## 配置
 
 在 Obsidian 设置中找到 "OB Sync" 选项：
+
+### 插件更新
+
+插件支持自动更新检测：
+
+| 设置项 | 说明 | 默认值 |
+|--------|------|--------|
+| **Auto update** | 启动时自动检查更新 | `true` |
+
+**手动检查更新**：
+
+1. **设置页面**：在插件设置中点击 "Check" 按钮
+2. **命令面板**：使用 `Ctrl/Cmd + P` 打开命令面板，搜索 "Check for updates"
+
+**更新流程**：
+
+1. 点击检查更新按钮后，插件会自动检测 GitHub 上的最新版本
+2. 如果检测到新版本，会自动下载并安装
+3. 安装完成后，提示重启 Obsidian 完成更新
 
 ### 基础设置
 
@@ -92,8 +125,6 @@ ObSync/
 
 文件格式：
 ```markdown
-# 2024-01-15
-
 ## 14:30:00
 
 这是发送的文本内容...
@@ -136,6 +167,8 @@ ObSync/
 |------|------|
 | `OB Sync: Sync messages` | 同步消息 |
 | `OB Sync: Open settings` | 打开设置页面 |
+| `OB Sync: Check for updates` | 检查插件更新 |
+| `OB Sync: Download and install update` | 下载并安装更新 |
 
 ## 项目结构
 
@@ -156,28 +189,71 @@ obsidian-plugin/
 ### 环境要求
 
 - Node.js 18+
-- npm
+- npm 或 yarn
 
-### 开发模式
+### 开发流程
 
-```bash
-npm install
-npm run dev
+1. **克隆仓库**：
+   ```bash
+   git clone https://github.com/wallleap/obsidian-plugin-sync-message.git
+   cd obsidian-plugin-sync-message/obsidian-plugin
+   ```
+
+2. **安装依赖**：
+   ```bash
+   npm install
+   ```
+
+3. **开发模式**：
+   ```bash
+   npm run dev
+   ```
+   监听文件变化自动编译，构建产物输出到 `dist/` 目录。
+
+4. **链接到 Obsidian**（开发调试用）：
+   ```bash
+   # 创建符号链接
+   ln -s /path/to/obsidian-plugin/main.js /path/to/vault/.obsidian/plugins/ob-sync/main.js
+   ln -s /path/to/obsidian-plugin/manifest.json /path/to/vault/.obsidian/plugins/ob-sync/manifest.json
+   ln -s /path/to/obsidian-plugin/styles.css /path/to/vault/.obsidian/plugins/ob-sync/styles.css
+   ```
+
+5. **调试插件**：
+   - 打开 Obsidian 并启用插件
+   - 打开开发者工具：`Ctrl+Shift+I`（Windows/Linux）或 `Cmd+Option+I`（Mac）
+   - 在 Console 面板中查看日志（需勾选 Verbose 级别）
+
+### 构建命令
+
+| 命令 | 说明 |
+|------|------|
+| `npm run dev` | 开发模式，监听文件变化自动编译 |
+| `npm run build` | 生产构建，输出到 `dist/` 目录 |
+| `npm run lint` | ESLint 代码检查 |
+| `npm run lint -- --fix` | ESLint 自动修复 |
+
+### 项目结构
+
+```
+obsidian-plugin/
+├── src/
+│   ├── main.ts           # 插件入口，注册命令和事件
+│   └── settings.ts       # 设置页面和配置管理
+├── dist/                 # 构建产物（自动生成）
+│   └── main.js
+├── manifest.json         # 插件清单（版本号、名称、描述等）
+├── styles.css            # 插件样式
+├── package.json          # 项目依赖和脚本
+├── tsconfig.json         # TypeScript 配置
+└── esbuild.config.mjs    # esbuild 构建配置
 ```
 
-监听文件变化自动编译。
+### 发布新版本
 
-### 构建
-
-```bash
-npm run build
-```
-
-### 代码检查
-
-```bash
-npm run lint
-```
+1. 更新 `manifest.json` 中的版本号（可省略）
+2. 创建 GitHub Release，Tag 命名格式为 `vX.X.X`（如 `v1.0.0`）`git tag v1.0.0`
+3. 提交并推送代码到 GitHub `git push origin v1.0.0`
+4. 插件会自动检测并提示更新
 
 ## 数据存储
 
@@ -201,7 +277,7 @@ npm run lint
 
 1. 检查服务器地址是否正确
 2. 检查用户 ID 是否有效
-3. 查看 Obsidian 控制台错误信息
+3. 查看 Obsidian 控制台错误信息（需勾选 Verbose 级别）
 
 ### 文件未创建
 
