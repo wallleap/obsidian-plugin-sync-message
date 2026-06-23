@@ -166,8 +166,7 @@ export default class ObSyncPlugin extends Plugin {
 		if (abstractFile instanceof TFile) {
 			file = abstractFile;
 		} else {
-			const content = `# ${this.formatDate(date)}\n\n`;
-			file = await this.app.vault.create(filePath, content);
+			file = await this.app.vault.create(filePath, '');
 		}
 
 		const existingContent = await this.app.vault.read(file);
