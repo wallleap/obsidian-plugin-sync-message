@@ -11,7 +11,6 @@ export interface ObSyncSettings {
 	timeFormat: string;
 	titleTemplate: string;
 	frontmatterTemplate: string;
-	useImageBedRelay: boolean;
 	serverUrl: string;
 	lastUpdateCheck: string;
 	autoUpdate: boolean;
@@ -31,7 +30,6 @@ date: {{created_at}}
 updated: {{created_at}}
 image-auto-upload: true
 source: {{url}}`,
-	useImageBedRelay: false,
 	serverUrl: 'http://localhost:8080',
 	lastUpdateCheck: '',
 	autoUpdate: true,
@@ -152,18 +150,6 @@ export class ObSyncSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.frontmatterTemplate)
 					.onChange(async (value) => {
 						this.plugin.settings.frontmatterTemplate = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName('Use image bed relay')
-			.setDesc('Enable image upload to image bed after downloading')
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.useImageBedRelay)
-					.onChange(async (value) => {
-						this.plugin.settings.useImageBedRelay = value;
 						await this.plugin.saveSettings();
 					}),
 			);
