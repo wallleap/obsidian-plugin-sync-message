@@ -13,6 +13,8 @@ export interface ObSyncSettings {
 	frontmatterTemplate: string;
 	useImageBedRelay: boolean;
 	serverUrl: string;
+	lastUpdateCheck: string;
+	autoUpdate: boolean;
 }
 
 export const DEFAULT_SETTINGS: ObSyncSettings = {
@@ -31,6 +33,8 @@ image-auto-upload: true
 source: {{url}}`,
 	useImageBedRelay: false,
 	serverUrl: 'http://localhost:8080',
+	lastUpdateCheck: '',
+	autoUpdate: true,
 };
 
 export class ObSyncSettingTab extends PluginSettingTab {
@@ -163,6 +167,34 @@ export class ObSyncSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					}),
 			);
+
+		new Setting(containerEl)
+			.setName('Auto update')
+			.setDesc('Automatically check for plugin updates on startup')
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.autoUpdate)
+					.onChange(async (value) => {
+						this.plugin.settings.autoUpdate = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Check for updates')
+			.setDesc('Manually check for plugin updates')
+			.addButton((button) =>
+				button
+					.setButtonText('Check')
+					.onClick(async () => {
+						await this.plugin.checkForUpdates(true);
+					}),
+			);
+
+		const versionDiv = containerEl.createEl('div', { cls: 'setting-item-description' });
+		const versionP = versionDiv.createEl('p');
+		versionP.createEl('strong', { text: 'Current version: ' });
+		versionP.createEl('span', { text: this.plugin.currentVersion });
 
 		const lastSyncDiv = containerEl.createEl('div', { cls: 'setting-item-description' });
 		const lastSyncP = lastSyncDiv.createEl('p');

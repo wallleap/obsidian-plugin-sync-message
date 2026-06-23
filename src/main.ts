@@ -24,11 +24,22 @@ export interface Message {
 	};
 }
 
+interface GitHubRelease {
+	tag_name: string;
+	assets: Array<{
+		name: string;
+		browser_download_url: string;
+	}>;
+}
+
 export default class ObSyncPlugin extends Plugin {
 	settings!: ObSyncSettings;
+	currentVersion: string = '0.0.0';
 
 	async onload() {
 		await this.loadSettings();
+
+		this.currentVersion = (this.manifest as { version?: string })?.version || '0.0.0';
 
 		this.addRibbonIcon('refresh-cw', 'Ob sync', async (_evt: MouseEvent) => {
 			await this.syncMessages();
@@ -50,7 +61,22 @@ export default class ObSyncPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: 'check-update',
+			name: 'Check for updates',
+			callback: async () => {
+				await this.checkForUpdates(true);
+			},
+		});
+
 		this.addSettingTab(new ObSyncSettingTab(this.app, this));
+
+		if (this.settings.autoUpdate) {
+			this.register(() => {});
+			window.setTimeout(() => {
+				void this.checkForUpdates(false);
+			}, 5000);
+		}
 	}
 
 	onunload() { }
@@ -321,5 +347,125 @@ export default class ObSyncPlugin extends Plugin {
 		}
 
 		return fileName;
+	}
+
+	async checkForUpdates(showNoUpdateNotice: boolean = false): Promise<void> {
+		try {
+			const latestRelease = await this.fetchLatestVersion();
+			if (!latestRelease) {
+				if (showNoUpdateNotice) {
+					new Notice('Failed to check for updates');
+				}
+				return;
+			}
+
+			const latestVersion = latestRelease.tag_name.replace(/^v/, '');
+			const currentVersion = this.currentVersion.replace(/^v/, '');
+
+			if (this.compareVersions(latestVersion, currentVersion) > 0) {
+				const notice = new Notice(`Update available: ${currentVersion} → ${latestVersion}`, 10000);
+				const el = ((notice as unknown as { messageEl?: HTMLElement }).messageEl
+					?? (notice as unknown as { noticeEl?: HTMLElement }).noticeEl);
+				el?.addEventListener('click', () => {
+					void this.downloadAndInstallUpdate(latestRelease);
+				});
+			} else if (showNoUpdateNotice) {
+				new Notice('No updates available');
+			}
+
+			this.settings.lastUpdateCheck = new Date().toISOString();
+			await this.saveSettings();
+		} catch (error) {
+			console.error('Error checking for updates:', error);
+			if (showNoUpdateNotice) {
+				new Notice('Failed to check for updates');
+			}
+		}
+	}
+
+	async fetchLatestVersion(): Promise<GitHubRelease | null> {
+		try {
+			const response = await requestUrl({
+				url: 'https://api.github.com/repos/wallleap/obsidian-plugin-sync-message/releases/latest',
+				method: 'GET',
+				headers: {
+					'Accept': 'application/vnd.github.v3+json',
+				},
+			});
+			return response.json as GitHubRelease;
+		} catch {
+			return null;
+		}
+	}
+
+	compareVersions(v1: string, v2: string): number {
+		const parts1 = v1.split('.').map(Number);
+		const parts2 = v2.split('.').map(Number);
+		const length = Math.max(parts1.length, parts2.length);
+
+		for (let i = 0; i < length; i++) {
+			const p1 = parts1[i] || 0;
+			const p2 = parts2[i] || 0;
+			if (p1 > p2) return 1;
+			if (p1 < p2) return -1;
+		}
+		return 0;
+	}
+
+	async downloadAndInstallUpdate(release: GitHubRelease): Promise<void> {
+		const notice = new Notice('Downloading update...');
+
+		try {
+			const pluginDir = this.getPluginDirectory();
+			if (!pluginDir) {
+				new Notice('Failed to find plugin directory');
+				notice.hide();
+				return;
+			}
+
+			const requiredFiles = ['main.js', 'manifest.json', 'styles.css'];
+			const assets = release.assets;
+
+			for (const fileName of requiredFiles) {
+				const asset = assets.find(a => a.name === fileName);
+				if (!asset) {
+					console.warn(`Missing asset: ${fileName}`);
+					continue;
+				}
+
+				const response = await requestUrl({
+					url: asset.browser_download_url,
+					method: 'GET',
+				});
+
+				const filePath = `${pluginDir}/${fileName}`;
+				if (response.arrayBuffer) {
+					await this.app.vault.adapter.writeBinary(filePath, response.arrayBuffer);
+				} else if (typeof response.text === 'string') {
+					await this.app.vault.adapter.write(filePath, response.text);
+				}
+			}
+
+			notice.hide();
+			new Notice('Update downloaded! Please restart Obsidian to complete the update.', 15000);
+		} catch (error) {
+			console.error('Error downloading update:', error);
+			notice.hide();
+			new Notice('Failed to download update');
+		}
+	}
+
+	getPluginDirectory(): string | null {
+		try {
+			const pluginId = (this.manifest as { id?: string })?.id || 'ob-sync';
+			const adapter = (this.app.vault as unknown as { adapter?: { basePath?: string } }).adapter;
+			const vaultDir = adapter?.basePath;
+			if (vaultDir) {
+				return `${vaultDir}/.obsidian/plugins/${pluginId}`;
+			}
+			return null;
+		} catch {
+			return null;
+		}
 	}
 }
