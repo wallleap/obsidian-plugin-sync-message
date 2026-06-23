@@ -21,6 +21,19 @@ jobs:
                   node-version: 24
                   cache: 'npm'
 
+            - name: Update manifest version
+              run: |
+                  tag="${GITHUB_REF#refs/tags/}"
+                  version="${tag#v}"
+                  echo "Updating manifest version to $version"
+                  node -e "
+                      const fs = require('fs');
+                      const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+                      manifest.version = '$version';
+                      fs.writeFileSync('manifest.json', JSON.stringify(manifest, null, '\t'));
+                      console.log('Manifest version updated:', manifest.version);
+                  "
+
             - name: Build plugin
               run: |
                   npm ci
