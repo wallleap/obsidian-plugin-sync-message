@@ -11,7 +11,7 @@ import {
 } from './settings';
 
 export interface Message {
-	id: number;
+	id: string;
 	type: string;
 	title: string;
 	content: string;
@@ -126,6 +126,7 @@ export default class ObSyncPlugin extends Plugin {
 				body: JSON.stringify({
 					user_id: this.settings.userId,
 					last_sync_time: this.settings.lastSyncTime,
+					last_sync_message_id: this.settings.lastSyncMessageId,
 				}),
 			});
 
