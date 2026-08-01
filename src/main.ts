@@ -212,8 +212,8 @@ export default class ObSyncPlugin extends Plugin {
 		}
 
 		const existingContent = await this.app.vault.read(file);
-		const timeStr = this.formatTime(date);
-		const newContent = `${existingContent}## ${timeStr}\n\n${message.content}\n\n`;
+		const header = this.getTextNoteHeader(date);
+		const newContent = `${existingContent}## ${header}\n\n${message.content}\n\n`;
 
 		await this.app.vault.modify(file, newContent);
 	}
@@ -227,6 +227,16 @@ export default class ObSyncPlugin extends Plugin {
 		}
 		const day = String(date.getDate()).padStart(2, '0');
 		return `${year}-${month}-${day}.md`;
+	}
+
+	// 文本消息内容标题：按天文件只写时间（HH:mm:ss，文件名已含日期）；
+	// 按月文件写日期时间（YYYY-MM-DD HH:mm:ss，便于在同月文件里区分）。
+	getTextNoteHeader(date: Date): string {
+		const time = this.formatTime(date);
+		if (this.settings.noteFileUnit === 'month') {
+			return `${this.formatDate(date)} ${time}`;
+		}
+		return time;
 	}
 
 	async createUrlNote(message: Message) {

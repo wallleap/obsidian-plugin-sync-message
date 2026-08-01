@@ -90,13 +90,18 @@ export class ObSyncSettingTab extends PluginSettingTab {
 					}),
 			);
 
+		// 动态示例：显示当前日期/月份，随打开设置页的时间变化
+		const now = new Date();
+		const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+		const monthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
 		new Setting(containerEl)
 			.setName('Text note file unit')
-			.setDesc('Text messages are saved into one file per day (2026-07-31.md) or per month (2026-07.md)')
+			.setDesc(`Text messages are saved into one file per day (${todayStr}.md) or per month (${monthStr}.md)`)
 			.addDropdown((dropdown) =>
 				dropdown
-					.addOption('day', 'Daily (2026-07-31.md)')
-					.addOption('month', 'Monthly (2026-07.md)')
+					.addOption('day', `Daily (${todayStr}.md)`)
+					.addOption('month', `Monthly (${monthStr}.md)`)
 					.setValue(this.plugin.settings.noteFileUnit)
 					.onChange(async (value) => {
 						this.plugin.settings.noteFileUnit = value as 'day' | 'month';
