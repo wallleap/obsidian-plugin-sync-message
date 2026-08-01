@@ -310,8 +310,12 @@ export default class ObSyncPlugin extends Plugin {
 	async downloadAttachment(message: Message) {
 		if (!message.attachment) return;
 
-		const attachmentFolder = `${this.settings.saveFolder}/${this.settings.attachmentFolder}`;
-		await this.ensureFolderExists(attachmentFolder);
+		// 图片存到 imageFolder，其它附件存到 attachmentFolder（按 MIME 区分）
+		const isImage = message.attachment.file_type === 'image' ||
+			message.attachment.file_type.startsWith('image/');
+		const subFolder = isImage ? this.settings.imageFolder : this.settings.attachmentFolder;
+		const targetFolder = `${this.settings.saveFolder}/${subFolder}`;
+		await this.ensureFolderExists(targetFolder);
 
 		try {
 			const response = await requestUrl({
@@ -322,7 +326,7 @@ export default class ObSyncPlugin extends Plugin {
 			const arrayBuffer = response.arrayBuffer;
 
 			const fileName = message.attachment.filename;
-			const filePath = `${attachmentFolder}/${fileName}`;
+			const filePath = `${targetFolder}/${fileName}`;
 
 			await this.app.vault.createBinary(filePath, arrayBuffer);
 
@@ -338,7 +342,11 @@ export default class ObSyncPlugin extends Plugin {
 			}
 
 			const existingContent = await this.app.vault.read(note);
-			const newContent = `${existingContent}- [${fileName}](/${filePath}) (${this.formatDate(date)})\n`;
+			// 图片附件用 Obsidian embed（![[path]]），其它附件保留链接
+			const link = isImage
+				? `![[${filePath}]]`
+				: `[${fileName}](/${filePath})`;
+			const newContent = `${existingContent}- ${link} (${this.formatDate(date)})\n`;
 
 			await this.app.vault.modify(note, newContent);
 		} catch {
