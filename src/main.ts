@@ -215,9 +215,27 @@ export default class ObSyncPlugin extends Plugin {
 
 		const existingContent = await this.app.vault.read(file);
 		const header = this.getTextNoteHeader(date);
-		const newContent = `${existingContent}## ${header}\n\n${message.content}\n\n`;
+
+		// 带附件（text + 附件一起发送）：下载附件，文本 md 写入 embed/链接，同时记录到 attachments.md
+		let attLine = '';
+		if (message.attachment) {
+			const savedPath = await this.downloadAttachmentFile(message);
+			if (savedPath) {
+				attLine = this.isImageFileType(message.attachment.file_type)
+					? `![[${savedPath}]]\n\n`
+					: `[${message.attachment.filename}](/${savedPath})\n\n`;
+				await this.appendToAttachmentsMD(message, savedPath);
+			}
+		}
+
+		const newContent = `${existingContent}## ${header}\n\n${message.content || ''}\n\n${attLine}`;
 
 		await this.app.vault.modify(file, newContent);
+	}
+
+	// 判断附件是否为图片（兼容完整 MIME 与旧版大类）
+	isImageFileType(fileType: string): boolean {
+		return fileType === 'image' || fileType.startsWith('image/');
 	}
 
 	// 文本消息笔记文件名：按设置按天（2026-07-31.md）或按月（2026-07.md）组织
@@ -310,10 +328,43 @@ export default class ObSyncPlugin extends Plugin {
 	async downloadAttachment(message: Message) {
 		if (!message.attachment) return;
 
-		// 图片存到 imageFolder，其它附件存到 attachmentFolder（按 MIME 区分）
-		const isImage = message.attachment.file_type === 'image' ||
-			message.attachment.file_type.startsWith('image/');
-		const subFolder = isImage ? this.settings.imageFolder : this.settings.attachmentFolder;
+		const savedPath = await this.downloadAttachmentFile(message);
+		if (!savedPath) {
+			return; // 下载失败，静默（downloadAttachmentFile 内已有处理）
+		}
+
+		await this.appendToAttachmentsMD(message, savedPath);
+	}
+
+	// 在 attachments.md 追加附件记录（图片 embed / 其它附件链接）
+	async appendToAttachmentsMD(message: Message, savedPath: string) {
+		const date = new Date(message.created_at);
+		const notePath = `${this.settings.saveFolder}/attachments.md`;
+
+		const abstractFile = this.app.vault.getAbstractFileByPath(notePath);
+		let note: TFile;
+		if (abstractFile instanceof TFile) {
+			note = abstractFile;
+		} else {
+			note = await this.app.vault.create(notePath, '# Attachments\n\n');
+		}
+
+		const existingContent = await this.app.vault.read(note);
+		const link = this.isImageFileType(message.attachment.file_type)
+			? `![[${savedPath}]]`
+			: `[${message.attachment.filename}](/${savedPath})`;
+		const newContent = `${existingContent}- ${link} (${this.formatDate(date)})\n`;
+
+		await this.app.vault.modify(note, newContent);
+	}
+
+	// 下载附件到对应目录（图片 imageFolder，其它 attachmentFolder），返回 vault 路径；失败返回 null。
+	async downloadAttachmentFile(message: Message): Promise<string | null> {
+		if (!message.attachment) return null;
+
+		const subFolder = this.isImageFileType(message.attachment.file_type)
+			? this.settings.imageFolder
+			: this.settings.attachmentFolder;
 		const targetFolder = `${this.settings.saveFolder}/${subFolder}`;
 		await this.ensureFolderExists(targetFolder);
 
@@ -323,34 +374,12 @@ export default class ObSyncPlugin extends Plugin {
 				method: 'GET',
 			});
 
-			const arrayBuffer = response.arrayBuffer;
-
 			const fileName = message.attachment.filename;
 			const filePath = `${targetFolder}/${fileName}`;
-
-			await this.app.vault.createBinary(filePath, arrayBuffer);
-
-			const date = new Date(message.created_at);
-			const notePath = `${this.settings.saveFolder}/attachments.md`;
-
-			const abstractFile = this.app.vault.getAbstractFileByPath(notePath);
-			let note: TFile;
-			if (abstractFile instanceof TFile) {
-				note = abstractFile;
-			} else {
-				note = await this.app.vault.create(notePath, '# Attachments\n\n');
-			}
-
-			const existingContent = await this.app.vault.read(note);
-			// 图片附件用 Obsidian embed（![[path]]），其它附件保留链接
-			const link = isImage
-				? `![[${filePath}]]`
-				: `[${fileName}](/${filePath})`;
-			const newContent = `${existingContent}- ${link} (${this.formatDate(date)})\n`;
-
-			await this.app.vault.modify(note, newContent);
+			await this.app.vault.createBinary(filePath, response.arrayBuffer);
+			return filePath;
 		} catch {
-			// Failed to download attachment
+			return null; // 下载失败
 		}
 	}
 
