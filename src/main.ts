@@ -15,6 +15,8 @@ export interface Message {
 	type: string;
 	title: string;
 	content: string;
+	summary?: string;
+	summary_status?: string;
 	original_url: string;
 	file_path: string;
 	created_at: string;
@@ -271,22 +273,38 @@ export default class ObSyncPlugin extends Plugin {
 		const timeStr = this.formatTime(date);
 		const datetimeStr = `${dateStr} ${timeStr}`;
 
+		// summary 多行文本在 YAML 里需单行化，避免破坏 frontmatter 语法
+		const summarySingleLine = (message.summary || '').replace(/\s+/g, ' ').trim();
+
 		let frontmatter = this.settings.frontmatterTemplate
 			.replace(/\{\{title\}\}/g, message.title || '')
 			.replace(/\{\{created_at\}\}/g, datetimeStr)
 			.replace(/\{\{url\}\}/g, message.original_url || '')
 			.replace(/\{\{date\}\}/g, dateStr)
-			.replace(/\{\{time\}\}/g, timeStr);
+			.replace(/\{\{time\}\}/g, timeStr)
+			.replace(/\{\{summary\}\}/g, summarySingleLine);
 
 		return frontmatter;
 	}
 
 	renderContent(title: string, message: Message, date: Date, frontmatter: string): string {
+		// AI 摘要以 Obsidian callout 形式展示在正文前（仅生成成功时）
+		const summaryBlock = message.summary ? this.renderSummaryBlock(message.summary) : '';
+		const body = summaryBlock
+			? `${summaryBlock}\n\n${message.content || ''}`
+			: (message.content || '');
+
 		if (frontmatter) {
-			return `---\n${frontmatter}\n---\n\n${message.content || ''}`;
+			return `---\n${frontmatter}\n---\n\n${body}`;
 		}
 
-		return `# ${title}\n\n**URL:** [${message.original_url}](${message.original_url})\n\n**Saved:** ${this.formatDate(date)} ${this.formatTime(date)}\n\n${message.content || ''}`;
+		return `# ${title}\n\n**URL:** [${message.original_url}](${message.original_url})\n\n**Saved:** ${this.formatDate(date)} ${this.formatTime(date)}\n\n${body}`;
+	}
+
+	// 摘要转 Obsidian callout：每行加 > 前缀，多行 Markdown 摘要保持可读
+	renderSummaryBlock(summary: string): string {
+		const lines = summary.split('\n').map((line) => `> ${line}`);
+		return `> [!summary] 📌 AI 摘要\n${lines.join('\n')}`;
 	}
 
 	async downloadAttachment(message: Message) {
