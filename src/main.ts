@@ -200,7 +200,7 @@ export default class ObSyncPlugin extends Plugin {
 
 	async createTextNote(message: Message) {
 		const date = new Date(message.created_at);
-		const fileName = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}.md`;
+		const fileName = this.getTextNoteFileName(date);
 		const filePath = `${this.settings.saveFolder}/${fileName}`;
 
 		const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
@@ -216,6 +216,17 @@ export default class ObSyncPlugin extends Plugin {
 		const newContent = `${existingContent}## ${timeStr}\n\n${message.content}\n\n`;
 
 		await this.app.vault.modify(file, newContent);
+	}
+
+	// 文本消息笔记文件名：按设置按天（2026-07-31.md）或按月（2026-07.md）组织
+	getTextNoteFileName(date: Date): string {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		if (this.settings.noteFileUnit === 'month') {
+			return `${year}-${month}.md`;
+		}
+		const day = String(date.getDate()).padStart(2, '0');
+		return `${year}-${month}-${day}.md`;
 	}
 
 	async createUrlNote(message: Message) {

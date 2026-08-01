@@ -14,6 +14,8 @@ export interface ObSyncSettings {
 	serverUrl: string;
 	lastUpdateCheck: string;
 	autoUpdate: boolean;
+	// 文本消息笔记文件的组织粒度：day = 2026-07-31.md，month = 2026-07.md
+	noteFileUnit: 'day' | 'month';
 }
 
 export const DEFAULT_SETTINGS: ObSyncSettings = {
@@ -33,6 +35,7 @@ source: {{url}}`,
 	serverUrl: 'http://localhost:8080',
 	lastUpdateCheck: '',
 	autoUpdate: true,
+	noteFileUnit: 'day',
 };
 
 export class ObSyncSettingTab extends PluginSettingTab {
@@ -83,6 +86,20 @@ export class ObSyncSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.saveFolder)
 					.onChange(async (value) => {
 						this.plugin.settings.saveFolder = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Text note file unit')
+			.setDesc('Text messages are saved into one file per day (2026-07-31.md) or per month (2026-07.md)')
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption('day', 'Daily (2026-07-31.md)')
+					.addOption('month', 'Monthly (2026-07.md)')
+					.setValue(this.plugin.settings.noteFileUnit)
+					.onChange(async (value) => {
+						this.plugin.settings.noteFileUnit = value as 'day' | 'month';
 						await this.plugin.saveSettings();
 					}),
 			);
