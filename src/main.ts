@@ -119,6 +119,14 @@ export default class ObSyncPlugin extends Plugin {
 		const notice = new Notice('Syncing messages...');
 
 		try {
+			// 调试日志：Obsidian requestUrl 不走 DevTools Network 面板，
+			// 排查同步问题看这里 + 后端日志
+			console.debug('[OB Sync] Syncing messages...', {
+				serverUrl: this.settings.serverUrl,
+				userId: this.settings.userId,
+				lastSyncMessageId: this.settings.lastSyncMessageId,
+			});
+
 			const response = await requestUrl({
 				url: `${this.settings.serverUrl.replace(/\/$/, '')}/api/message/sync`,
 				method: 'POST',
@@ -131,6 +139,8 @@ export default class ObSyncPlugin extends Plugin {
 					last_sync_message_id: this.settings.lastSyncMessageId,
 				}),
 			});
+
+			console.debug('[OB Sync] Sync response status:', response.status);
 
 			let messages = response.json as Message[];
 
@@ -170,6 +180,7 @@ export default class ObSyncPlugin extends Plugin {
 			notice.hide();
 			new Notice(`Synced ${messages.length} message(s)`);
 		} catch (error) {
+			console.debug('[OB Sync] Sync failed:', (error as Error).message);
 			notice.hide();
 			new Notice('Sync failed: ' + (error as Error).message);
 		}
